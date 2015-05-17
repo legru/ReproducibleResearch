@@ -15,7 +15,7 @@ output:
 
 The code is loaded with the following commands
 
-```{r loading} # , cache=TRUE}
+```{r loading} 
 # move to the right directors
 setwd("~/GitHub/Coursera/DataScience/ReproducibleResearch")
 
