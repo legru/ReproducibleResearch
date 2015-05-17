@@ -1,0 +1,268 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+output: 
+  html_document:
+    keep_md: true
+---
+
+## Loading and preprocessing the data
+
+*Show any code that is needed to*
+
+1. *Load the data (i.e. `read.csv()`)*
+
+2. *Process/transform the data (if necessary) into a format suitable for your analysis*
+
+The code is loaded with the following commands
+
+```{r loading} # , cache=TRUE}
+# move to the right directors
+setwd("~/GitHub/Coursera/DataScience/ReproducibleResearch")
+
+# read the data
+data.raw <- read.csv("activity.csv")
+````  
+**Answer: **  All the data is stored in the variable `data.raw`.  
+
+**Preprocessing:** load libraries required for the analysis
+
+```{r message=FALSE, warning=FALSE}
+# libraries required
+library(ggplot2, warn.conflicts = FALSE, quietly=TRUE)
+library(dplyr, warn.conflicts = FALSE, quietly=TRUE)
+library(data.table, warn.conflicts = FALSE, quietly=TRUE)
+library(chron, warn.conflicts = FALSE, quietly=TRUE)
+# option on how to represent numbers
+options(scipen=999)
+````
+
+
+A quick inspection
+
+````{r Loading_Inspection, echo=TRUE}
+names(data.raw)
+str(data.raw)
+````
+
+## What is mean total number of steps taken per day?
+
+*For this part of the assignment, you can ignore the missing values in
+the dataset.*
+
+1. *Make a histogram of the total number of steps taken each day*
+
+```{r, echo=TRUE, fig.width=10}
+# ignore the missing values
+data.no_na <- na.omit(data.raw)
+
+# extract the number of steps per day
+data.sum.day_steps <- summarise(group_by(data.no_na, date), 
+                                sum.steps=sum(steps))
+# plot it
+qplot(date,sum.steps,data=data.sum.day_steps,
+      geom="histogram",
+      stat="identity")+
+  # fix labels position
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, hjust=1))
+
+
+````
+
+2. *Calculate and report the **mean** and **median** total number of steps taken per day*
+
+
+```{r, echo=TRUE}
+# compute the mean
+data.mean_day_steps <- mean(data.sum.day_steps$sum.steps)
+
+# compute the median
+data.median_day_steps <- median(data.sum.day_steps$sum.steps)
+````
+
+**Answer:**  
+ - the mean daily number of steps is `r data.mean_day_steps`
+ - the median daily number of steps is `r data.median_day_steps`
+
+### What is the average daily activity pattern?
+
+1. *Make a time series plot (i.e. `type = "l"`) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)*
+
+````{r time_series_1, fig.width=10}
+# compute the average number of steps taken, averaged across all days
+# based on the 5-minute interval 
+data.no_na.mean_interval_steps <- summarise(group_by(data.no_na,
+                                                     interval), 
+                                            mean.steps= mean(steps))
+# plot the the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+qplot(interval, mean.steps, data=data.no_na.mean_interval_steps,geom="line")
+````
+
+
+2. *Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?*
+
+````{r}
+# sort the  list 
+sort.mean.interval.steps <- arrange(data.no_na.mean_interval_steps,
+                                    desc(mean.steps))
+# extract the first one
+sort.mean.interval.steps[1,]
+````
+
+*Answer:* The 5-minute interval, on average across all the days in the dataset, that contains the maximum number of steps is `r sort.mean.interval.steps[1,1]` with `r sort.mean.interval.steps[1,2]` steps.
+
+### Inputing missing values
+
+*Note that there are a number of days/intervals where there are missing
+values (coded as `NA`). The presence of missing days may introduce
+bias into some calculations or summaries of the data.*
+
+1. *Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with `NA`s)*
+
+````{r}
+# calculate the number of missing values
+dimNA <- dim(data.raw) - dim(data.no_na)
+# report the value
+dimNA[1]
+````
+**Answer: **The number of total 'NA' is `r dimNA[1]`
+
+2. *Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.*
+
+I address the question by replacing the missing values with the mean value of the same interval across all days
+
+````{r}
+# transform the data frame in a data table for easy indexing
+data.no_na.mean_interval_steps <- data.table(data.no_na.mean_interval_steps)
+
+# this function replaces the NAs with the estimates
+# if the steps is NA, replace it the instant mean
+# otherwise keep the value
+na.fill <- function (steps,intervals) {
+  # check whether the value of steps is NA
+  ifelse (is.na(steps),
+          # >if case < retrieve the mean value of steps at that interval
+          data.no_na.mean_interval_steps[interval==intervals,mean.steps],
+          # > else case< simply use the current steps value
+          steps)
+}
+
+````
+
+**Answer: ** The strategy adopted replaces NAs with the corresponding instance averaged across all days using the function `na.fill` defined above.
+
+
+3. *Create a new dataset that is equal to the original dataset but with the missing data filled in.*
+
+````{r}
+# apply the function to the raw data read from the file
+data.estimated <- transform(data.raw,steps=na.fill(steps,interval))
+
+````
+
+**Answer: ** The data with the estimates is stored in `data.estimated`.
+
+4. *Make a histogram of the total number of steps taken each day*
+- *Calculate and report the **mean** and **median** total number of steps taken per day.* 
+- *Do these values differ from the estimates from the first part of the assignment?*
+- *What is the impact of imputing missing data on the estimates of the total daily number of steps?*
+
+````{r impact_missing_values, fig.width=10}
+# extract the number of steps per day
+data.estimated.sum.day_steps <- summarise(group_by(data.estimated, date),
+                                        sum.steps=sum(steps))
+# plot it
+qplot(date,sum.steps,data=data.estimated.sum.day_steps,
+      geom="histogram",
+      stat="identity")+
+  # fix labels position
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5, hjust=1))
+
+
+# compute the mean
+data.estimated.mean_day_steps <- mean(data.estimated.sum.day_steps$sum.steps)
+
+# compute the median
+data.estimated.median_day_steps <- median(data.estimated.sum.day_steps$sum.steps)
+````
+
+**Answer:**  
+- *Calculate and report the **mean** and **median** total number of steps taken per day.* 
+
+The mean daily number of steps using the estimated data is `r data.estimated.mean_day_steps` while the median is `r data.estimated.median_day_steps`.  
+
+- *Do these values differ from the estimates from the first part of the assignment?*
+
+
+`data.estimated.mean_day_steps - data.mean_day_steps` = `r data.estimated.mean_day_steps - data.mean_day_steps` 
+
+and
+
+`data.estimated.median_day_steps - data.median_day_steps` = `r data.estimated.median_day_steps - data.median_day_steps`
+
+The means and median do not differ.  Although this is somewhat surprising, in reality it is not because the missing values all concentrated in 8 days (2012-10-01 2012-10-08 2012-11-01 2012-11-04 2012-11-09 2012-11-10 2012-11-14
+2012-11-30) and in these days all values are replaced with the corresponding mean values.  As a consequence the means and median did not move.  
+
+- *What is the impact of imputing missing data on the estimates of the total daily number of steps?*
+
+As seen above there is no difference in terms of mean and median.  The only difference is that there is more data in the data set and more days filled.  Indeed `r dim(data.estimated.sum.day_steps$steps) - dim(data.sum.day_steps$steps)` reveals that there are 8 days more in the estimated set.
+
+
+
+### Are there differences in activity patterns between weekdays and weekends?
+
+*For this part the `weekdays()` function may be of some help here. Use
+the dataset with the filled-in missing values for this part.*
+
+1. *Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day. *
+
+````{r weekday_weekend}
+# define constant labels for week end and week 
+weekend.level <- "weekend"
+weekday.level <- "weekday"
+
+# distinguish week ends from week days.
+data.estimated.we_wd <- mutate(data.estimated,
+                               we_wd=ifelse(is.weekend(as.Date(date)),
+                                            weekend.level,
+                                            weekday.level))
+# transform the we_wd variable in a factor
+# (strickly speakinng it is not needed, but it seems to be required by the homework)
+data.estimated.we_wd$we_wd <- as.factor(data.estimated.we_wd$we_wd)
+````
+
+**Answer: ** `data.estimated.we_wd` is a table which contains the same content of data.estimated`,  but it also contains a variables with the two factors 
+
+2. *Make a panel plot containing a time series plot (i.e. `type = "l"`) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). The plot should look something like the following, which was created using  **simulated data**: *
+
+![Sample panel plot](instructions_fig/sample_panelplot.png) 
+
+
+**Your plot will look different from the one above** *because you will
+be using the activity monitor data. Note that the above plot was made
+using the lattice system but you can make the same version of the plot
+using any plotting system you choose.*
+
+````{r plot_weekdays_weekend, fig.width=10}
+# compute the mean steps distinguishing week days and week ends
+mean.interval.steps <- summarise(group_by(data.estimated.we_wd, 
+                                          interval, 
+                                          we_wd),
+                                 steps.mean = mean(steps))
+
+# make two plots
+
+plot.final <- ggplot(mean.interval.steps,aes(interval,steps.mean))+
+  #using line geometry as required
+  geom_line()+
+  # faceting on weekend/weekday
+  facet_wrap(~we_wd,ncol=1)
+
+# plot the graph
+plot.final 
+
+````
+
+
